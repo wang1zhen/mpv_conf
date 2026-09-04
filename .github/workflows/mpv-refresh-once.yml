@@ -1,0 +1,393 @@
+name: One-shot mpv configuration refresh
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/mpv-refresh-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Refresh configuration and upstream scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Remove Anime4K and SVP-specific content.
+          rm -rf portable_config/shaders
+          rm -f portable_config/scripts/mpvSockets.lua
+
+          # ModernZ v0.3.3 uses a single icon font.
+          rm -f portable_config/fonts/fluent-system-icons.ttf
+          rm -f portable_config/fonts/material-design-icons.ttf
+          mkdir -p portable_config/fonts portable_config/scripts portable_config/script-opts
+
+          # Follow current upstream versions for maintained helper scripts.
+          curl -fsSL https://raw.githubusercontent.com/mpv-player/mpv/master/TOOLS/lua/autoload.lua \
+            -o portable_config/scripts/autoload.lua
+          curl -fsSL https://raw.githubusercontent.com/jonniek/mpv-playlistmanager/master/playlistmanager.lua \
+            -o portable_config/scripts/playlistmanager.lua
+          curl -fsSL https://raw.githubusercontent.com/po5/thumbfast/master/thumbfast.lua \
+            -o portable_config/scripts/thumbfast.lua
+
+          # Pin ModernZ to the requested v0.3.3 revision.
+          MODERNZ_REF=579897e8c974c380caa5017dc7b27a69123c1333
+          curl -fsSL "https://raw.githubusercontent.com/Samillion/ModernZ/${MODERNZ_REF}/modernz.lua" \
+            -o portable_config/scripts/modernz.lua
+          curl -fsSL "https://raw.githubusercontent.com/Samillion/ModernZ/${MODERNZ_REF}/modernz-icons.ttf" \
+            -o portable_config/fonts/modernz-icons.ttf
+
+          cat > portable_config/mpv.conf <<'EOF'
+          # ========== 视频 ==========
+          vo=gpu-next                         # 使用 gpu-next 渲染器
+          gpu-api=auto                        # 自动选择可用的 GPU API
+          dither-depth=auto                   # 自动选择抖动深度
+          hwdec=auto                          # 自动选择硬件解码后端
+          video-sync=display-resample         # 以显示刷新率同步视频
+          interpolation                       # 配合 display-resample 启用插值
+
+          # ========== 播放控制 ==========
+          keep-open=always                    # 文件播放结束后保持窗口
+          save-position-on-quit=yes           # 退出时保存播放位置
+
+          # ========== 音频 ==========
+          audio-file-auto=fuzzy               # 自动加载同名/近似命名外挂音轨
+          audio-channels=stereo               # 默认双声道输出
+          audio-normalize-downmix=yes         # 降混时进行响度规范化
+          volume=100                          # 默认音量
+          alang=ja,en,zh                      # 音轨优先级：日语 > 英语 > 中文
+
+          # ========== 字幕 ==========
+          sub-auto=fuzzy                      # 自动加载外挂字幕
+          slang=zh,en,ja                      # 字幕优先级：中文 > 英语 > 日语
+          sub-font='Noto Sans CJK SC'
+          sub-font-size=48
+          sub-color='#FFFFFF'
+          sub-border-size=3
+          sub-border-color='#000000'
+          sub-shadow-offset=1
+          sub-shadow-color='#000000'
+
+          # 次字幕（mpv 0.40+）
+          secondary-sid=auto
+          secondary-sub-pos=95
+          secondary-sub-visibility=yes
+
+          # ========== 界面 ==========
+          osc=no                              # 使用 ModernZ，禁用内置 OSC
+          osd-bar=no                          # 不显示内置 OSD 进度条
+          border=no                           # 无系统窗口边框
+          autofit-larger=80%x80%              # 最大窗口尺寸为屏幕的 80%
+          volume-max=200                      # 允许最高 200% 音量
+          EOF
+
+          cat > portable_config/input.conf <<'EOF'
+          # ========== 鼠标操作 ==========
+          MBTN_LEFT_DBL cycle pause           # 双击左键：暂停/播放
+          MBTN_RIGHT    ignore                # 右键单击：禁用
+          WHEEL_UP      add volume 2          # 滚轮上：音量 +2
+          WHEEL_DOWN    add volume -2         # 滚轮下：音量 -2
+
+          # ========== 方向键导航 ==========
+          RIGHT       seek 5                  # 快进 5 秒
+          LEFT        seek -5                 # 快退 5 秒
+          UP          add volume 5            # 音量 +5
+          DOWN        add volume -5           # 音量 -5
+          Shift+RIGHT seek 60                 # 快进 60 秒
+          Shift+LEFT  seek -60                # 快退 60 秒
+          Ctrl+RIGHT  sub-seek 1              # 跳到下一个字幕事件
+          Ctrl+LEFT   sub-seek -1             # 跳到上一个字幕事件
+
+          # ========== 播放速度 ==========
+          [  multiply speed 1/1.1
+          ]  multiply speed 1.1
+          {  multiply speed 0.5
+          }  multiply speed 2.0
+          BS set speed 1.0
+
+          # ========== 截图 ==========
+          s screenshot                        # 含字幕截图
+          S screenshot video                  # 纯视频截图
+
+          # ========== 窗口 ==========
+          f cycle fullscreen
+          t cycle ontop
+
+          # ========== 字幕轨道 ==========
+          j cycle sub
+          J cycle sub down
+          k cycle secondary-sid
+          K cycle secondary-sid down
+
+          # ========== ModernZ ==========
+          TAB script-binding modernz/visibility
+          EOF
+
+          cat > portable_config/script-opts/modernz.conf <<'EOF'
+          # ModernZ v0.3.3 user overrides.
+          # Unspecified options intentionally inherit upstream defaults.
+
+          # Language and layout
+          language=default
+          layout=default
+          icon_theme=fluent
+          icon_style=mixed
+          font=mpv-osd-symbols
+          idlescreen=yes
+          window_top_bar=auto
+          showwindowed=yes
+          showfullscreen=yes
+          showonpause=yes
+          keeponpause=bottombar
+          greenandgrumpy=no
+
+          # Behaviour
+          hidetimeout=2000
+          keep_with_cursor=yes
+          fadeduration=200
+          fadein=no
+          minmousemove=0
+          deadzonesize=0.75
+          deadzone_hide=instant
+          osc_on_seek=no
+          osc_on_start=no
+          mouse_seek_pause=yes
+          force_seek_tooltip=no
+          vidscale=auto
+          scalewindowed=1.0
+          scalefullscreen=1.0
+
+          # Titles and time
+          show_title=yes
+          title=${media-title}
+          title_font_size=24
+          show_chapter_title=yes
+          chapter_above_title=no
+          chapter_fmt=%s
+          chapter_title_font_size=14
+          cache_info=no
+          cache_info_speed=no
+          timecurrent=yes
+          timems=no
+          unicodeminus=no
+          time_format=dynamic
+          time_font_size=16
+          tooltip_font_size=14
+
+          # Window and subtitle margins
+          show_window_title=no
+          window_controls=yes
+          windowcontrols_independent=yes
+          sub_margins=yes
+          osd_margins=no
+          dynamic_margins=yes
+
+          # Controls
+          subtitles_button=yes
+          audio_tracks_button=yes
+          jump_buttons=yes
+          jump_amount=10
+          jump_more_amount=60
+          jump_icon_number=yes
+          jump_mode=relative
+          jump_softrepeat=yes
+          chapter_skip_buttons=no
+          track_nextprev_buttons=yes
+          volume_control=yes
+          volume_control_type=linear
+          playlist_button=yes
+          hide_empty_playlist_button=no
+          gray_empty_playlist_button=no
+          fullscreen_button=yes
+          info_button=yes
+          ontop_button=yes
+          screenshot_button=yes
+          download_button=no
+          loop_button=no
+          shuffle_button=no
+          speed_button=no
+          buttons_always_active=none
+          zoom_control=yes
+
+          # Colors: retain the existing orange/brown theme.
+          osc_color=#000000
+          seekbarfg_color=#FB8C00
+          seekbarbg_color=#94754F
+          seekbar_cache_color=#918F8E
+          seek_handle_color=#FB8C00
+          seek_handle_border_color=#FB8C00
+          hover_effect_color=#FB8C00
+          title_color=#FFFFFF
+          time_color=#FFFFFF
+          chapter_title_color=#FFFFFF
+          side_buttons_color=#FFFFFF
+          middle_buttons_color=#FFFFFF
+          playpause_color=#FFFFFF
+          thumbnail_box_color=#111111
+          thumbnail_box_outline=#404040
+
+          # Interaction and seekbar
+          hover_effect=size,glow,color
+          button_hover_size=115
+          button_glow_amount=5
+          slider_hover_size=100
+          tooltip_hints=yes
+          seek_handle_size=0.8
+          seekbar_height=medium
+          seekrange=yes
+          seekrangealpha=150
+          livemarkers=yes
+          seekbarkeyframes=no
+          slider_rounded_corners=yes
+          nibbles_style=triangle
+          nibbles_top=yes
+          nibbles_bottom=yes
+          automatickeyframemode=yes
+          automatickeyframelimit=600
+          persistent_progress=no
+          persistent_buffer=no
+
+          # Visibility and refresh
+          visibility=auto
+          visibility_modes=never_auto_always
+          tick_delay=0.03
+          tick_delay_follow_display_fps=no
+          EOF
+
+          cat > README.md <<'EOF'
+          # mpv configuration
+
+          一套以 `gpu-next`、ModernZ 和常用播放脚本为核心的 mpv 配置。仓库不包含 Anime4K 或 SVP 相关内容。
+
+          ## 主要设置
+
+          - 视频输出：`vo=gpu-next`
+          - 硬件解码：`hwdec=auto`
+          - 同步与插值：`video-sync=display-resample` + `interpolation`
+          - 退出时保存播放进度：`save-position-on-quit=yes`
+          - 音轨优先级：日语 > 英语 > 中文
+          - 字幕优先级：中文 > 英语 > 日语
+          - 支持 mpv 0.40+ 的 secondary subtitle
+          - ModernZ 替代 mpv 内置 OSC
+
+          ## 目录结构
+
+          ```text
+          portable_config/
+          ├── mpv.conf
+          ├── input.conf
+          ├── fonts/
+          │   └── modernz-icons.ttf
+          ├── script-opts/
+          │   ├── autoload.conf
+          │   ├── modernz.conf
+          │   └── playlistmanager.conf
+          └── scripts/
+              ├── audio-osc.lua
+              ├── autoload.lua
+              ├── modernz.lua
+              ├── playlistmanager.lua
+              └── thumbfast.lua
+          ```
+
+          `portable_config` 可直接用于 mpv 的 portable 配置布局；在标准 Linux 配置中，也可以将其中内容放到 `~/.config/mpv/`。
+
+          ## 快捷键
+
+          | 按键 | 功能 |
+          | --- | --- |
+          | 双击左键 | 暂停 / 播放 |
+          | 滚轮 | 音量 ±2 |
+          | ← / → | 快退 / 快进 5 秒 |
+          | Shift + ← / → | 快退 / 快进 60 秒 |
+          | Ctrl + ← / → | 上一个 / 下一个字幕事件 |
+          | ↑ / ↓ | 音量 ±5 |
+          | `[` / `]` | 降低 / 提高播放速度 |
+          | `{` / `}` | 速度减半 / 加倍 |
+          | Backspace | 速度恢复 1.0 |
+          | `s` / `S` | 含字幕 / 纯视频截图 |
+          | `f` | 全屏 |
+          | `t` | 窗口置顶 |
+          | `j` / `J` | 主字幕轨道正向 / 反向切换 |
+          | `k` / `K` | 次字幕轨道正向 / 反向切换 |
+          | `Tab` | ModernZ 显示模式 |
+          | `F8` | playlistmanager 播放列表 |
+
+          ## 脚本
+
+          - [ModernZ](https://github.com/Samillion/ModernZ)：固定为 v0.3.3，并使用对应的 `modernz-icons.ttf`。
+          - [thumbfast](https://github.com/po5/thumbfast)：跟随上游版本。
+          - [mpv-playlistmanager](https://github.com/jonniek/mpv-playlistmanager)：跟随上游版本；本仓库仅通过 `script-opts/playlistmanager.conf` 保留 F8 快捷键覆盖。
+          - [autoload.lua](https://github.com/mpv-player/mpv/blob/master/TOOLS/lua/autoload.lua)：跟随 mpv 官方上游；本仓库关闭自动加载图片。
+
+          ## ModernZ 配置
+
+          `script-opts/modernz.conf` 只保留本仓库需要覆盖的选项，其余行为继承 ModernZ v0.3.3 默认值。这样升级脚本时不需要维护一份完整的上游默认配置副本。
+
+          当前保留的主要偏好包括：
+
+          - 2 秒自动隐藏
+          - 暂停时保持底部控制条
+          - 启动和 seek 时不强制弹出 OSC
+          - 禁用下载、循环和速度按钮
+          - 保留橙色进度条主题
+          - 启用字幕动态避让
+
+          ## script-opts
+
+          `autoload.conf`：关闭图片自动加载。
+
+          `playlistmanager.conf`：使用 `F8` 打开/关闭播放列表。
+
+          ## 依赖
+
+          - 较新的 mpv；secondary subtitle 配置按 mpv 0.40+ 编写
+          - ModernZ v0.3.3
+          - `modernz-icons.ttf`
+          - 可选的 `yt-dlp` / `ffmpeg` 取决于其他 mpv 使用场景；ModernZ 下载按钮当前已关闭
+          EOF
+
+      - name: Validate refreshed tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -d portable_config/shaders
+          test ! -e portable_config/scripts/mpvSockets.lua
+          test ! -e portable_config/fonts/fluent-system-icons.ttf
+          test ! -e portable_config/fonts/material-design-icons.ttf
+          test -s portable_config/fonts/modernz-icons.ttf
+          grep -q '^vo=gpu-next' portable_config/mpv.conf
+          grep -q '^hwdec=auto' portable_config/mpv.conf
+          grep -q '^save-position-on-quit=yes' portable_config/mpv.conf
+          grep -q 'ModernZ v0.3.3' portable_config/scripts/modernz.lua
+          if grep -RniE 'Anime4K|SVP|mpvSockets' README.md portable_config; then
+            echo 'Obsolete Anime4K/SVP reference remains.' >&2
+            exit 1
+          fi
+          file portable_config/fonts/modernz-icons.ttf | grep -qi 'TrueType'
+
+      - name: Commit refreshed configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A README.md portable_config
+          if git diff --cached --quiet; then
+            echo 'No configuration changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Refresh mpv configuration and upstream scripts'
+          git push origin HEAD:main
