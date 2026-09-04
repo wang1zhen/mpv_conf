@@ -20,21 +20,34 @@
 portable_config/
 ├── mpv.conf
 ├── input.conf
-├── fonts/
-│   └── modernz-icons.ttf
 ├── script-opts/
 │   ├── autoload.conf
 │   ├── modernz.conf
 │   └── playlistmanager.conf
-└── scripts/
-    ├── audio-osc.lua
-    ├── autoload.lua
-    ├── modernz.lua
-    ├── playlistmanager.lua
-    └── thumbfast.lua
+├── scripts/
+│   ├── audio-osc.lua
+│   ├── autoload.lua
+│   ├── playlistmanager.lua
+│   └── thumbfast.lua
+└── vendor/
+    └── ModernZ/                  # Git submodule, v0.3.3
+        ├── modernz.lua
+        └── modernz-icons.ttf
 ```
 
 `portable_config` 可直接用于 mpv portable 配置布局；标准 Linux 安装也可将其中内容放到 `~/.config/mpv/`。
+
+ModernZ 以 Git submodule 固定到上游 v0.3.3，因此克隆仓库时请初始化 submodule：
+
+```bash
+git clone --recurse-submodules https://github.com/wang1zhen/mpv_conf.git
+```
+
+已存在的 clone 可执行：
+
+```bash
+git submodule update --init --recursive
+```
 
 ## 快捷键
 
@@ -59,14 +72,14 @@ portable_config/
 
 ## 脚本与上游
 
-- [ModernZ](https://github.com/Samillion/ModernZ)：使用 v0.3.3 及对应的 `modernz-icons.ttf`。
+- [ModernZ](https://github.com/Samillion/ModernZ)：固定为 v0.3.3；脚本与 `modernz-icons.ttf` 均直接来自该 submodule。
 - [thumbfast](https://github.com/po5/thumbfast)：跟随上游。
 - [mpv-playlistmanager](https://github.com/jonniek/mpv-playlistmanager)：跟随上游；`script-opts/playlistmanager.conf` 只保留本地 F8 覆盖。
 - [autoload.lua](https://github.com/mpv-player/mpv/blob/master/TOOLS/lua/autoload.lua)：跟随 mpv 官方上游；`script-opts/autoload.conf` 保持 `images=no`。
 
 ## ModernZ
 
-`script-opts/modernz.conf` 只保留本配置实际覆盖的选项，其余继承 ModernZ 上游默认值，以减少后续升级时的配置漂移。
+`script-opts/modernz.conf` 只保留本配置实际覆盖的选项，其余继承 ModernZ v0.3.3 默认值，以减少后续升级时的配置漂移。
 
 当前主要偏好：
 
@@ -80,5 +93,4 @@ portable_config/
 ## 依赖
 
 - 较新的 mpv；secondary subtitle 部分按 mpv 0.40+ 编写
-- ModernZ v0.3.3
-- `modernz-icons.ttf`
+- Git（用于初始化 ModernZ submodule）

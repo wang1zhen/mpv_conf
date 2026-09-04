@@ -1,0 +1,3 @@
+[submodule "portable_config/vendor/ModernZ"]
+	path = portable_config/vendor/ModernZ
+	url = https://github.com/Samillion/ModernZ.git
