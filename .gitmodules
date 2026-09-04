@@ -1,3 +1,9 @@
 [submodule "portable_config/vendor/ModernZ"]
 	path = portable_config/vendor/ModernZ
 	url = https://github.com/Samillion/ModernZ.git
+[submodule "portable_config/vendor/mpv-playlistmanager"]
+	path = portable_config/vendor/mpv-playlistmanager
+	url = https://github.com/jonniek/mpv-playlistmanager.git
+[submodule "portable_config/vendor/thumbfast"]
+	path = portable_config/vendor/thumbfast
+	url = https://github.com/po5/thumbfast.git
