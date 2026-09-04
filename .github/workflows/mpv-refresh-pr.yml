@@ -1,0 +1,33 @@
+name: Temporary mpv refresh
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Refresh mpv configuration
+        run: bash .github/scripts/refresh-mpv.sh
+
+      - name: Commit generated refresh
+        run: |
+          set -euo pipefail
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Refresh mpv configuration and upstream scripts'
+          git push origin HEAD:${{ github.head_ref }}
